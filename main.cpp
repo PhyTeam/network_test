@@ -413,11 +413,16 @@ int main(int argc, char *argv[])
     } else {
         i = 1;
     }
+    char *ip = NULL;
+    char default_ip[] = "127.0.0.1";
     std::string prefix = "/Users/bbphuc/Desktop/upload/";
     if (argc >= 3) {
         // Get prefix arguments
-        prefix = argv[2];
-    }
+        //prefix = argv[2];
+	ip = argv[2];
+    } else {
+        ip = default_ip;
+	}
 
     switch (i) {
     case 1:
@@ -437,7 +442,7 @@ int main(int argc, char *argv[])
     case 3:
     {
         TCP_Client client;
-        client.Connect("127.0.0.1", 8080);
+        client.Connect(ip, 8080);
         size_t size = 10 << 20;
         char* data = (char*) malloc(size); // 1 Mb
         bzero(data, size);
