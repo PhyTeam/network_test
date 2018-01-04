@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE QtCreatorProject>
-<!-- Written by QtCreator 4.3.1, 2017-10-09T15:17:24. -->
+<!-- Written by QtCreator 4.3.1, 2018-01-04T11:55:29. -->
 <qtcreator>
  <data>
   <variable>EnvironmentId</variable>
@@ -303,10 +303,10 @@
     <value type="int" key="PE.EnvironmentAspect.Base">2</value>
     <valuelist type="QVariantList" key="PE.EnvironmentAspect.Changes"/>
     <value type="QString" key="ProjectExplorer.ProjectConfiguration.DefaultDisplayName">network</value>
-    <value type="QString" key="ProjectExplorer.ProjectConfiguration.DisplayName"></value>
-    <value type="QString" key="ProjectExplorer.ProjectConfiguration.Id">Qt4ProjectManager.Qt4RunConfiguration:/Users/bbphuc/workspace/network/network.pro</value>
-    <value type="bool" key="QmakeProjectManager.QmakeRunConfiguration.UseLibrarySearchPath">true</value>
-    <value type="QString" key="Qt4ProjectManager.Qt4RunConfiguration.CommandLineArguments">2 face.jpg</value>
+    <value type="QString" key="ProjectExplorer.ProjectConfiguration.DisplayName">network2</value>
+    <value type="QString" key="ProjectExplorer.ProjectConfiguration.Id">Qt4ProjectManager.Qt4RunConfiguration:/Users/bbphuc/facedetect/network/network.pro</value>
+    <value type="bool" key="QmakeProjectManager.QmakeRunConfiguration.UseLibrarySearchPath">false</value>
+    <value type="QString" key="Qt4ProjectManager.Qt4RunConfiguration.CommandLineArguments">4</value>
     <value type="QString" key="Qt4ProjectManager.Qt4RunConfiguration.ProFile">network.pro</value>
     <value type="bool" key="Qt4ProjectManager.Qt4RunConfiguration.UseDyldImageSuffix">false</value>
     <value type="bool" key="Qt4ProjectManager.Qt4RunConfiguration.UseTerminal">false</value>

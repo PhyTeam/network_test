@@ -18,6 +18,10 @@
 #include <vector>
 #include <queue>
 #include <map>
+#include <atomic>
+#include <sys/time.h>
+
+#include <assert.h>
 
 #include "serialization.h"
 #include "md5.h"
@@ -25,18 +29,11 @@
 #ifndef FILESERVER_H
 #define FILESERVER_H
 
-class Client {
-private:
-    static int s_max_id;
-    int id;
-public:
-    Client();
-};
-
 struct UploadFileRequest {
     int     fd;
     long    size;
     char    name[252];
+    unsigned char md5[16];
 };
 
 struct file_information {   // 40bytes
@@ -53,25 +50,10 @@ struct FileRequest {
 
 int sendAll(int fd, char* data, size_t size);
 int recvAll(int fd, char* data, size_t size);
+void *get_in_addr(struct sockaddr *sa);
 // old version
 void createServer(int argc, char *argv[]);
-#define MAX_BUFFER_SIZE 1024
-class IONetworkBuffer {
-private:
-    char _buffer[MAX_BUFFER_SIZE];
-    char *bptr, *cptr, *eptr;
-    char *header, *tail;
-public:
-    IONetworkBuffer() {
-        header = _buffer;
-        tail = &_buffer[MAX_BUFFER_SIZE - 1];
-        bptr = header;
-        cptr = header;
-        eptr = header;
-    }
-    void read();
-    void write();
-};
+
 class Task;
 class FileReceiver;
 
@@ -134,6 +116,7 @@ private:
 
     int fdmax;
 
+    std::atomic_bool _IsContinue;
     std::mutex _mtx;
     std::vector<UploadFileRequest> _req;
     std::map<int, FILE*> resources;
@@ -142,7 +125,9 @@ public:
     FileReceiver();
 
     void enqueue(UploadFileRequest req);
-    void run();
+    void run(const std::string& prefix);
+    void stop();
+    void resume();
 
 };
 

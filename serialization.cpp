@@ -186,7 +186,7 @@ unsigned long long int unpacku64(unsigned char *buf)
 **  (16-bit unsigned length is automatically prepended to strings)
 */
 
-unsigned int pack(unsigned char *buf, char *format, ...)
+unsigned int pack(unsigned char *buf, const char *format, ...)
 {
     va_list ap;
 
@@ -202,7 +202,7 @@ unsigned int pack(unsigned char *buf, char *format, ...)
     long long int q;            // 64-bit
     unsigned long long int Q;
 
-    float f;                    // floats
+    // float f;                    // floats
     double d;
     long double g;
     unsigned long long int fhold;
@@ -325,7 +325,7 @@ unsigned int pack(unsigned char *buf, char *format, ...)
 **  (string is extracted based on its stored length, but 's' can be
 **  prepended with a max length)
 */
-void unpack(unsigned char *buf, char *format, ...)
+unsigned int unpack(unsigned char *buf, const char *format, ...)
 {
     va_list ap;
 
@@ -341,19 +341,21 @@ void unpack(unsigned char *buf, char *format, ...)
     long long int *q;            // 64-bit
     unsigned long long int *Q;
 
-    float *f;                    // floats
+    // float *f;                    // floats
     double *d;
     long double *g;
     unsigned long long int fhold;
 
     char *s;
     unsigned int len, maxstrlen=0, count;
+    unsigned int size = 0;
 
     va_start(ap, format);
 
     for(; *format != '\0'; format++) {
         switch(*format) {
         case 'c': // 8-bit
+            size += 1;
             c = va_arg(ap, signed char*);
             if (*buf <= 0x7f) { *c = *buf;} // re-sign
             else { *c = -1 - (unsigned char)(0xffu - *buf); }
@@ -361,41 +363,48 @@ void unpack(unsigned char *buf, char *format, ...)
             break;
 
         case 'C': // 8-bit unsigned
+            size += 1;
             C = va_arg(ap, unsigned char*);
             *C = *buf++;
             break;
 
         case 'h': // 16-bit
+            size += 2;
             h = va_arg(ap, int*);
             *h = unpacki16(buf);
             buf += 2;
             break;
 
         case 'H': // 16-bit unsigned
+            size += 2;
             H = va_arg(ap, unsigned int*);
             *H = unpacku16(buf);
             buf += 2;
             break;
 
         case 'l': // 32-bit
+            size += 4;
             l = va_arg(ap, long int*);
             *l = unpacki32(buf);
             buf += 4;
             break;
 
         case 'L': // 32-bit unsigned
+            size += 4;
             L = va_arg(ap, unsigned long int*);
             *L = unpacku32(buf);
             buf += 4;
             break;
 
         case 'q': // 64-bit
+            size += 8;
             q = va_arg(ap, long long int*);
             *q = unpacki64(buf);
             buf += 8;
             break;
 
         case 'Q': // 64-bit unsigned
+            size += 8;
             Q = va_arg(ap, unsigned long long int*);
             *Q = unpacku64(buf);
             buf += 8;
@@ -409,6 +418,7 @@ void unpack(unsigned char *buf, char *format, ...)
         //    break;
 
         case 'd': // float-32
+            size += 4;
             d = va_arg(ap, double*);
             fhold = unpacku32(buf);
             *d = unpack754_32(fhold);
@@ -416,6 +426,7 @@ void unpack(unsigned char *buf, char *format, ...)
             break;
 
         case 'g': // float-64
+            size += 8;
             g = va_arg(ap, long double*);
             fhold = unpacku64(buf);
             *g = unpack754_64(fhold);
@@ -430,6 +441,7 @@ void unpack(unsigned char *buf, char *format, ...)
             else count = len;
             memcpy(s, buf, count);
             s[count] = '\0';
+            size += len;
             buf += len;
             break;
 
@@ -443,4 +455,6 @@ void unpack(unsigned char *buf, char *format, ...)
     }
 
     va_end(ap);
+
+    return size;
 }

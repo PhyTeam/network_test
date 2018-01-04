@@ -14,7 +14,7 @@
 #define unpack754_32(i) (unpack754((i), 32, 8))
 #define unpack754_64(i) (unpack754((i), 64, 11))
 
-unsigned int pack(unsigned char *buf, char *format, ...);
-void unpack(unsigned char *buf, char *format, ...);
+unsigned int pack(unsigned char *buf, const char *format, ...);
+unsigned int unpack(unsigned char *buf, const char *format, ...);
 
 #endif // SERIALIZATION_H

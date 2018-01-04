@@ -2,12 +2,13 @@
 #include "client.h"
 
 #include <sys/stat.h>
+#include <thread>
+
+#include <errno.h>
 using namespace std;
 
 #define PORT "9034"   // port we're listening on
 #define MAXPENDING 10
-
-
 // get sockaddr, IPv4 or IPv6:
 void *get_in_addr(struct sockaddr *sa)
 {
@@ -22,7 +23,7 @@ int sendAll(int fd, char* data, size_t size)
 {
     int i = 0;
     while (i < size) {
-        int nbytes = send(fd, &data[i], size - i, 0);
+        int nbytes = send(fd, data + i, size - i, 0);
         if (nbytes > 0) {
             i += nbytes;
         } else {
@@ -67,7 +68,8 @@ bool FileServer::CreateServer() {
     hints.ai_family     = AF_UNSPEC;
     hints.ai_socktype   = SOCK_STREAM;
     hints.ai_flags      = AI_PASSIVE;
-    char port[] = "8080";
+    char port[32];
+    sprintf(port, "%d", this->mPort);
     int rv;
     if ((rv = getaddrinfo(NULL, port, &hints, &ai))) {
         fprintf(stderr, "server error: %s\n", gai_strerror(rv));
@@ -93,6 +95,7 @@ bool FileServer::CreateServer() {
         fprintf(stdout, "server error: can not binding\n");
         return false;
     }
+
     int val = fcntl(listener, F_GETFL, 0);
     fcntl(listener, F_SETFL, val | O_NONBLOCK); // Set the listener file description to non-blocking
 
@@ -142,6 +145,10 @@ void FileServer::Listen() {
                         unpack(ptr, "l", &size);
                         ptr += 4;
 
+                        unsigned char md5[16];
+                        memcpy(md5, ptr, sizeof(md5));
+                        ptr += 16;
+
                         char filename[256];
                         unpack(ptr, "%s", filename);
 
@@ -149,6 +156,8 @@ void FileServer::Listen() {
                         UploadFileRequest req;
                         req.fd = i;
                         req.size = size;
+                        memcpy(req.md5, md5, sizeof(md5));
+
                         strcpy(req.name, filename);
                         HandleUploadRequest(req);
                         FD_CLR(i, &master); // do not listening this client
@@ -165,6 +174,10 @@ void FileServer::Accept() {
     int newfd = accept(listener,
         (struct sockaddr *)&remoteaddr,
         &addrlen);
+
+    // Change the flags of new socket to non-blocking
+    int val = fcntl(newfd, F_GETFL, 0);
+    fcntl(newfd, F_SETFL, val | O_NONBLOCK);
 
     if (newfd == -1) {
         perror("accept");
@@ -214,14 +227,7 @@ void FileServer::HandleUploadRequest(UploadFileRequest request) {
     receiver->enqueue(request);
 }
 
-/////////////////////////////////////////////////////////
-Client::Client() {
-    ++s_max_id;
-    this->id = s_max_id;
-}
-
-int Client::s_max_id = 0;
-/////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////
 Task::Task() : fdmax(0) {
     FD_ZERO(&_master);
     FD_ZERO(&_read_fds);
@@ -298,7 +304,7 @@ void Task::run() {
     }
 }
 ///////////////////////////////////////////////////////////
-FileReceiver::FileReceiver() : fdmax(0) {
+FileReceiver::FileReceiver() : fdmax(0), _IsContinue(true) {
     FD_ZERO(&_master);
     FD_ZERO(&_read_fds);
 }
@@ -311,11 +317,11 @@ void FileReceiver::enqueue(UploadFileRequest req) {
     printf("push %s to receiver sock %d\n", req.name, req.fd);
 }
 
-void FileReceiver::run() {
+void FileReceiver::run(const std::string& prefix) {
 
     char buffer[2048];
 
-    for (;;) {// Loop forever
+    while (_IsContinue) {// Loop forever
         _read_fds = _master;
         struct timeval tv = {0, 500 };
 
@@ -325,7 +331,27 @@ void FileReceiver::run() {
 
         if (select(fdmax + 1, &_read_fds, NULL, NULL, &tv) == -1) {
             perror("select");
-            exit(4);
+            if (errno == EAGAIN) { // server run out of rerources
+                printf("SERVER: Server run out of resources");
+                std::this_thread::sleep_for(std::chrono::seconds(2)); // Sleep for 2s and try again
+                continue;
+            } else if (errno == EBADF) { // One of fd was invalid
+                for (int i = 0; i <= fdmax; i++) {
+                    if (FD_ISSET(i, &_master)) {
+                        // Check whether fd is valid
+                        if (fcntl(i, F_GETFD) == -1) {
+                            printf("Remove invalid fd %d\n", i);
+                            // Remove the invalid fd
+                            FD_CLR(i, &_master);
+                        }
+                    }
+                }
+                continue;
+            } else {
+                // Invalid arguments
+                exit(-1);
+            }
+
         }
 
         for (int i = 0; i <= fdmax; ++i) {
@@ -341,9 +367,9 @@ void FileReceiver::run() {
                         if (_req[j].fd == i)
                             filename = _req[j].name;
                     }
-                    char prefix[] = "/Users/bbphuc/Desktop/upload/";
+                    //char prefix[] = "/Users/bbphuc/Desktop/upload/";
                     char full_path[256];
-                    sprintf(full_path,"%s%s%d", prefix, filename, _idx++);
+                    sprintf(full_path,"%s%s%d", prefix.c_str(), filename, _idx++);
                     fp = fopen(full_path, "w+");
                     if (!fp) {
                         perror("fopen");
@@ -369,15 +395,25 @@ void FileReceiver::run() {
                                 printf("%02x", (unsigned int)digest[n]);
                             }
                             printf("\n");
+                            // find the request
+                            auto ret = std::find_if(_req.begin(), _req.end(), [&](const UploadFileRequest& req) {
+                                return (req.fd == i);
+                            });
+                            assert(ret != _req.end());
+                            int n = memcmp((*ret).md5, digest, sizeof(digest));
+                            if (n == 0) {
+                                printf("MD5 check: Successfull\n");
+                            } else {
+                                printf("MD5 check: Failed\n");
+                            }
 
                             printf("uploading was stopped by client\n");
                             resources.erase(it);
                             fclose(fp);
                             FD_CLR(i, &_master);
                         } else if (nbytes > 0) {
-                            // FIXME: block here
                             shared_ptr<MD5_CTX> ctx = (md5_test.find(i)->second);
-                            size_t val = fwrite(buffer, sizeof(char), nbytes, fp);
+                            fwrite(buffer, sizeof(char), nbytes, fp);
                             MD5Update(ctx.get(), (unsigned char*) buffer, nbytes * sizeof(char));
                         } else {
                             std::cout << "error:  can not recv" << std::endl;
@@ -389,7 +425,20 @@ void FileReceiver::run() {
     }
 }
 
+void FileReceiver::stop()
+{
+    _IsContinue = false;
+}
+
+void FileReceiver::resume()
+{
+    _IsContinue = true;
+}
+
 ///////////////////////////////////////////////////////////
+/// Old version
+///////////////////////////////////////////////////////////
+
 void createServer(int argc, char *argv[])
 {
     int serverSocket;

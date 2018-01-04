@@ -30,4 +30,5 @@ HEADERS += \
     fileserver.h \
     serialization.h \
     client.h \
-    md5.h
+    md5.h \
+    json.h
