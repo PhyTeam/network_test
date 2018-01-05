@@ -27,7 +27,6 @@ int sendAll(int fd, char* data, size_t size)
         if (nbytes > 0) {
             i += nbytes;
         } else {
-            fprintf(stderr, "err: can not sent message\n");
             return i;
         }
     }

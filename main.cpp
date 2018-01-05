@@ -28,7 +28,6 @@ using namespace std;
 
 // rtt
 double rtt = -1; // in s
-
 double timeval_subtract(struct timeval *x, struct timeval *y)
 {
     double diff = x->tv_sec - y->tv_sec;
@@ -72,6 +71,7 @@ public:
     void Connect(const std::string& ip, int port);
     void Send(const Message& msg);
     void Send(const char* data, size_t size);
+    int Read(char* data, size_t size);
     void ReadInput();
     void Disconnect();
 };
@@ -139,8 +139,8 @@ void TCP_Client::Connect(const std::string &ip, int port)
     sa.sin_family = AF_INET;
 
     // Change file descriptor to non-blocking
-    //int val = fcntl(F_GETFL, fd);
-    //fcntl(F_SETFL, fd, O_NONBLOCK | val);
+//    int val = fcntl(F_GETFL, fd);
+//    fcntl(F_SETFL, fd, O_NONBLOCK | val);
 
     if ((fd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
         DieWithError("socket() failed");
@@ -151,9 +151,6 @@ void TCP_Client::Connect(const std::string &ip, int port)
     }
     // Connected
     is_connected = true;
-
-
-
     this->port = port;
 }
 
@@ -191,8 +188,6 @@ void TCP_Client::Send(const char* buff, size_t nbytes)
 
 void TCP_Client::ReadInput() {
     // Read input from stdin
-
-
     char buff[1024];
     // Read until reach the new line characters
     int n = read(0, buff, sizeof(buff));
@@ -202,6 +197,13 @@ void TCP_Client::ReadInput() {
     } else {
 
     }
+}
+
+int TCP_Client::Read(char *data, size_t size)
+{
+    int rbytes = 0;
+    rbytes = recvAll(fd, data, size);
+    return rbytes;
 }
 
 void TCP_Client::Disconnect()
@@ -225,19 +227,19 @@ private:
     int backlog;
 public:
     TCP_Server();
+    virtual ~TCP_Server();
 
     void Listen(int port);
     void Accept();
 protected:
 
-    void onConnected();
-    void onDisconnected();
-    void onReceivedData(void* data, size_t size);
+    virtual void onConnected();
+    virtual void onDisconnected();
+    virtual void onReceivedData(void* data, size_t size, int socket);
 };
 
-TCP_Server::TCP_Server() {
-
-}
+TCP_Server::TCP_Server() {}
+TCP_Server::~TCP_Server() {}
 
 void TCP_Server::Listen(int port) {
     struct addrinfo *ai, *p;
@@ -333,7 +335,7 @@ void TCP_Server::Listen(int port) {
                         close(i); // bye!
                         FD_CLR(i, &master); // remove from master set
                     } else {
-                        onReceivedData(_buff, nbytes);
+                        onReceivedData(_buff, nbytes, i);
                     }
                 } // END handle data from client
             } // END got new incoming connection
@@ -378,10 +380,13 @@ void TCP_Server::onDisconnected() {
     std::cout << "Client has been disconnected." << std::endl;
 }
 
-void TCP_Server::onReceivedData(void *data, size_t size)
+void TCP_Server::onReceivedData(void *data, size_t size, int socketfd)
 {
     (void) data;
+    (void) socketfd;
     printf("Recv data. size: %zu \n", size);
+    // send ack to the client
+
 #if 0
     // Concate last data
     int r = 0;
@@ -403,6 +408,35 @@ void TCP_Server::onReceivedData(void *data, size_t size)
     else
         _rbuff_len = 0;
 #endif
+}
+
+class EchoServer: public TCP_Server
+{
+public:
+    EchoServer();
+    ~EchoServer();
+
+protected:
+    void onReceivedData(void *data, size_t size, int socketfd);
+};
+
+EchoServer::EchoServer() {}
+EchoServer::~EchoServer() {}
+
+void EchoServer::onReceivedData(void *data, size_t size, int socketfd)
+{
+    TCP_Server::onReceivedData(data, size, socketfd);
+    // Echo back to the client
+    int ret = -1;
+    int delay = 1;
+    do {
+        ret = ::sendAll(socketfd, (char*) data, size);
+        if (ret <= 0) {
+            printf("retry  ... \n", delay);
+            // sleep(delay);
+        }
+    } while (ret == (int)size);
+    printf("> Echo to the client number %d", socketfd);
 }
 
 int main(int argc, char *argv[])
@@ -443,16 +477,26 @@ int main(int argc, char *argv[])
     {
         TCP_Client client;
         client.Connect(ip, 8080);
-        size_t size = 10 << 20;
-        char* data = (char*) malloc(size); // 1 Mb
+        size_t size = 1 << 20;
+
+        char* data = (char*) malloc(size);
         bzero(data, size);
-        client.Send(data, size);
+        timeval tv_s; // the time at begin of packet
+        timeval tv_c; // the current time
+        LOOP(100) {
+            gettimeofday(&tv_s, NULL);
+            client.Send(data, size);
+            int ret = client.Read(data, size);
+            gettimeofday(&tv_c, NULL);
+            printf("RTT: %.5f ms, bytes: %d\n", timeval_subtract(&tv_c, &tv_s) * 1000., ret);
+        }
+        free(data);
         client.Disconnect();
         break;
     }
     case 4:
     {
-        TCP_Server server;
+        EchoServer server;
         server.Listen(8080);
         break;
     }
