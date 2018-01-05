@@ -38,7 +38,7 @@ int sendAll2(int fd, char* data, size_t size)
     FD_SET(fd, &fds);
     int i = 0;
     struct timeval timeout = { 0, 0 };
-    timeout.tv_sec = 1;
+    timeout.tv_sec = 2;
     while (i < size) {
         // Check file descriptor can write
         int ret = select(fd + 1, NULL, &fds, NULL, &timeout);
