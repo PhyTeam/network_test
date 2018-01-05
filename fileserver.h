@@ -49,6 +49,7 @@ struct FileRequest {
 };
 
 int sendAll(int fd, char* data, size_t size);
+int sendAll2(int fd, char* data, size_t size);
 int recvAll(int fd, char* data, size_t size);
 void *get_in_addr(struct sockaddr *sa);
 // old version

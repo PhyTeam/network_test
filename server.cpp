@@ -26,12 +26,40 @@ int sendAll(int fd, char* data, size_t size)
         int nbytes = send(fd, data + i, size - i, 0);
         if (nbytes > 0) {
             i += nbytes;
-        } else {
-            return i;
         }
     }
     return i;
 }
+
+int sendAll2(int fd, char* data, size_t size)
+{
+    fd_set fds;
+    FD_ZERO(&fds);
+    FD_SET(fd, &fds);
+    int i = 0;
+    struct timeval timeout = { 0, 0 };
+    timeout.tv_sec = 1;
+    while (i < size) {
+        // Check file descriptor can write
+        int ret = select(fd + 1, NULL, &fds, NULL, &timeout);
+        if (ret == -1) {
+            perror("select");
+            exit(EXIT_FAILURE);
+        } else if (ret == 0) {
+            printf("timeout ... \n");
+            continue;
+        }
+
+        if (FD_ISSET(fd, &fds)) {
+            int nbytes = send(fd, data + i, size - i, 0);
+            if (nbytes > 0) {
+                i += nbytes;
+            }
+        }
+    }
+    return i;
+}
+
 
 int recvAll(int fd, char* data, size_t size)
 {

@@ -429,13 +429,9 @@ void EchoServer::onReceivedData(void *data, size_t size, int socketfd)
     // Echo back to the client
     int ret = -1;
     int delay = 1;
-    do {
-        ret = ::sendAll(socketfd, (char*) data, size);
-        if (ret <= 0) {
-            printf("retry  ... \n", delay);
-            // sleep(delay);
-        }
-    } while (ret == (int)size);
+
+    ret = sendAll2(socketfd, (char*) data, size);
+
     printf("> Echo to the client number %d", socketfd);
 }
 
